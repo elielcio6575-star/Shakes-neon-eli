@@ -1,0 +1,9 @@
+{
+  "name": "neon-snake-online",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multiplayer online Snake game with Socket.IO",
+  "main": "server.js",
+  "scripts": {"start": "node server.js"},
+  "dependencies": {"express": "^4.21.2", "socket.io": "^4.8.1"}
+}

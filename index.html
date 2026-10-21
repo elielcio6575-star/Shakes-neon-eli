@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Neon Snake Online</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#050711;color:#edf4ff;font-family:system-ui,sans-serif}main{max-width:850px;margin:auto;padding:14px}h1{margin:4px 0;color:#dffcff}.muted{color:#a7b6d8;font-size:.9rem}.panel{background:#0b1020;border:1px solid #263252;border-radius:14px;padding:12px;margin:10px 0}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}input,button{font:inherit;padding:10px;border-radius:9px;border:1px solid #35466c;background:#151e39;color:white}button{cursor:pointer}.primary{border-color:#4dffd0;background:#12423e}canvas{width:100%;height:auto;display:block;border-radius:10px;border:1px solid #243052;background:#050812;touch-action:none}.scores{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.score{padding:8px;border:1px solid #263252;border-radius:9px;font-size:.8rem}.score b{display:block;font-size:1rem}.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;max-width:300px;margin:10px auto}.controls button{min-height:45px}.empty{visibility:hidden}.status{min-height:1.4em;color:#c6d5f5}.green{color:#50ff9c}.pink{color:#ff5b9d}.blue{color:#61b8ff}.small{font-size:.78rem;color:#a7b6d8;line-height:1.5}
+</style></head><body><main>
+<h1>✦ NEON SNAKE ONLINE</h1><p class="muted">Crie uma sala e compartilhe o link com até 2 amigos.</p>
+<div class="panel"><div class="row"><input id="name" maxlength="16" placeholder="Seu nome" value="Jogador"><button id="create" class="primary">Criar sala</button><input id="room" maxlength="6" placeholder="Código da sala" style="width:145px;text-transform:uppercase"><button id="join">Entrar</button></div><p id="roomInfo" class="muted">Crie uma sala ou entre usando o código do anfitrião.</p><div class="row"><button id="copy" disabled>Copiar link da sala</button><button id="start" disabled>Iniciar partida</button></div></div>
+<div class="panel"><div class="scores"><div class="score"><span class="green">● VERDE · P1</span><b id="s0">—</b><span id="p0" class="small"></span></div><div class="score"><span class="pink">● ROSA · P2</span><b id="s1">—</b><span id="p1" class="small"></span></div><div class="score"><span class="blue">● AZUL · P3</span><b id="s2">—</b><span id="p2" class="small"></span></div></div>
+<canvas id="game" width="600" height="600"></canvas><p class="status" id="status">Conectando ao servidor…</p>
+<div class="controls"><button class="empty">·</button><button data-dir="up">▲</button><button class="empty">·</button><button data-dir="left">◀</button><button data-dir="down">▼</button><button data-dir="right">▶</button></div>
+<p class="small">Use os botões no celular ou as setas/WASD no teclado. A estrela surge no centro a cada 10 comidas coletadas no total. Quem a pega pisca e ganha 5 segundos de poder.</p></div>
+</main>
+<script src="/socket.io/socket.io.js"></script><script>
+(()=>{const socket=io();const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');let roomId=null,playerId=null,isHost=false,state=null,started=false;
+const colors=['#50ff9c','#ff5b9d','#61b8ff'];
+socket.on('connect',()=>{$('status').textContent='Conectado. Crie uma sala ou entre com um código.'});
+socket.on('connect_error',()=>{$('status').textContent='Não foi possível conectar. Confira se o servidor está publicado e acessível.'});
+socket.on('room',d=>{roomId=d.code;playerId=d.playerId;isHost=d.host;$('room').value=roomId;$('roomInfo').textContent='Sala '+roomId+' · '+d.players.length+'/3 jogadores'+(isHost?' · você é anfitrião':'');$('start').disabled=!isHost;$('copy').disabled=false;$('status').textContent='Sala pronta. Compartilhe o link e aguarde seus amigos.';});
+socket.on('roomUpdate',d=>{if(!roomId)return;$('roomInfo').textContent='Sala '+roomId+' · '+d.players.length+'/3 jogadores'+(isHost?' · você é anfitrião':'');$('start').disabled=!isHost||d.players.length<1});
+socket.on('gameState',s=>{state=s;started=s.started;render()});
+socket.on('notice',m=>$('status').textContent=m);
+socket.on('errorMsg',m=>$('status').textContent=m);
+$('create').onclick=()=>socket.emit('createRoom',{name:$('name').value.trim()||'Jogador'});
+$('join').onclick=()=>{let code=$('room').value.trim().toUpperCase();if(code)socket.emit('joinRoom',{code,name:$('name').value.trim()||'Jogador'})};
+$('start').onclick=()=>socket.emit('startGame');
+$('copy').onclick=async()=>{let url=location.origin+location.pathname+'?room='+roomId;try{await navigator.clipboard.writeText(url);$('status').textContent='Link copiado! Envie aos seus amigos.'}catch(e){prompt('Copie este link:',url)}};
+const dirs={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+function turn(d){if(roomId&&started)socket.emit('turn',d)}
+document.querySelectorAll('[data-dir]').forEach(b=>{b.onclick=()=>turn(b.dataset.dir);b.addEventListener('touchstart',e=>{e.preventDefault();turn(b.dataset.dir)},{passive:false})});
+window.addEventListener('keydown',e=>{let k=e.key.toLowerCase(),d=({arrowup:'up',w:'up',arrowdown:'down',s:'down',arrowleft:'left',a:'left',arrowright:'right',d:'right'})[k];if(d){e.preventDefault();turn(d)}});
+const N=30,C=20;
+function render(){ctx.clearRect(0,0,600,600);ctx.fillStyle='#050812';ctx.fillRect(0,0,600,600);ctx.strokeStyle='rgba(63,92,145,.17)';for(let i=0;i<=N;i++){ctx.beginPath();ctx.moveTo(i*C,0);ctx.lineTo(i*C,600);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*C);ctx.lineTo(600,i*C);ctx.stroke()}
+if(!state){ctx.fillStyle='#eaf2ff';ctx.textAlign='center';ctx.font='22px system-ui';ctx.fillText('Crie ou entre em uma sala',300,300);return}
+for(let f of state.foods||[]){ctx.save();ctx.shadowColor='#ffc65c';ctx.shadowBlur=12;ctx.fillStyle='#ffc65c';ctx.beginPath();ctx.arc(f.x*C+10,f.y*C+10,5.5,0,7);ctx.fill();ctx.restore()}
+if(state.star){let p=.5+.5*Math.sin(Date.now()/85);ctx.save();ctx.translate(state.star.x*C+10,state.star.y*C+10);ctx.rotate(Date.now()/500);ctx.shadowColor='#fff36b';ctx.shadowBlur=15+25*p;ctx.fillStyle='#fff9a6';ctx.beginPath();for(let i=0;i<10;i++){let r=i%2?4:9,a=-Math.PI/2+i*Math.PI/5;i?ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r):ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();ctx.restore()}
+for(let s of state.snakes||[]){if(!s.alive)continue;for(let i=s.body.length-1;i>=0;i--){let p=s.body[i];ctx.save();ctx.fillStyle=s.powerMs>0&&Math.floor(Date.now()/90)%2?'#fff36b':colors[s.id];ctx.shadowColor=s.powerMs>0?'#fff36b':colors[s.id];ctx.shadowBlur=s.powerMs>0?18:7;ctx.beginPath();ctx.roundRect(p.x*C+3,p.y*C+3,14,14,4);ctx.fill();ctx.restore()}}
+for(let i=0;i<3;i++){let s=(state.snakes||[]).find(x=>x.id===i);$('s'+i).textContent=s?s.score+' pontos':'—';$('p'+i).textContent=s?(s.name+(s.alive?'': ' · eliminado')+(s.powerMs>0?' · ✦ '+(s.powerMs/1000).toFixed(1)+'s':'')):''}
+if(!state.started){ctx.fillStyle='rgba(3,6,16,.55)';ctx.fillRect(0,0,600,600);ctx.fillStyle='#f2f6ff';ctx.textAlign='center';ctx.font='bold 23px system-ui';ctx.fillText(state.winner?'Jogador '+state.winner+' venceu!':'Aguardando início da partida',300,300)}}
+const query=new URLSearchParams(location.search).get('room');if(query){$('room').value=query.toUpperCase();setTimeout(()=>$('join').click(),500)}setInterval(()=>{if(state)render()},100);
+})();
+</script></body></html>
